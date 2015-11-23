@@ -1,0 +1,147 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%% Dokumentace k interpretu jazyka IFJ14, 2014
+%%
+%% Upravená původní dokumentace od Davida Martinka.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[12pt,a4paper,titlepage,final]{article}
+
+% cestina a fonty
+\usepackage[slovak]{babel}
+\usepackage[utf8]{inputenc}
+% balicky pro odkazy
+\usepackage[bookmarksopen,colorlinks,plainpages=false,urlcolor=blue,unicode]{hyperref}
+\usepackage{url}
+\usepackage{amsmath}
+\usepackage{capt-of}
+\usepackage[Q=yes]{examplep}
+\usepackage{enumitem}
+
+% obrazky
+\usepackage{graphicx}
+% velikost stranky
+\usepackage[text={15.2cm, 25cm}, ignorefoot]{geometry}
+
+
+
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% titulní strana
+\input{title.tex}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% obsah
+\pagestyle{plain}
+\pagenumbering{roman}
+\setcounter{page}{1}
+\tableofcontents
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% textova zprava
+\newpage
+\pagestyle{plain}
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Popis implementácie} 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Sniffer RIPv1, RIPv2 a RIPng správ}
+
+Implementácia využíva knižnice `libpcap`, ktorá umožňuje odchytávanie paketov v promiskuitnom móde sieťovej karty.
+
+Aby klientská aplikácia nemusela spracovávať všetku komunikácia prichádzajúcu na sieťovú kartu, je využité filtrovanie, ktoré poskytuje táto knižica a ktoré obsluhuje jadro operačného systému. Nedochádza tak k častému prepínaniu kontextu. Takýmto spôsobom je zabezpečené, že aplikácia spracováva len komunikáciu, ktorá prichádza na UDP port číslo 520 a 521, viď popis jednotlivých protokolov.
+
+Po prijatí paketu dochádza k jeho postupnému \uv{vybaľovaniu}. Ako prvá sa na začiatku správy nachádza ethernetová hlavička, Nakoľko nás ale jej obsah nezaujíma a zároveň má fixnú dĺžku, môžeme sa posunúť priamo na IP hlavičku.
+
+V prvom kroku musíme naskôr určiť verziu IP protokolu, t.j. či sa jedná o protokol IPv4 alebo IPv6. Po určení správnej verzie môžeme určiť odosieľateľa správy, ktorého uvedieme neskôr vo výpise. Následne sa môžeme v prípade IPv6 posunúť o fixnú dĺžku a v prípade IPv4 o veľkosť hlavičky, ktorá sa uvádza hneď za verziou protokolu.
+
+Posledným protokolom obaľujúci RIP správu je UDP protokol, z ktorého môžeme pohodlne určiť veľkosť samotnej RIP správy a započať tak jej spracovávanie.
+
+Spracovávanie správy vykonávame s prihliadnutím na verziu smerovacieho protokolu. Medzi protokolom RIPv1 a RIPv2 nie sú až také veľké rozdiely, avšak protokol RIPng je značne odlišný. Napriek tomu, že protokol RIPng nesie záznamy o IPv6 adresách, položky s týmito záznammi majú rovnakú dĺžku ako u RIP protokolu.
+
+Výstup z aplikácie je možné vidieť v kapitole \ref{utok}.
+
+\subsection{Podvrhovač falošných RIPv2 Response správ}
+
+Po spracovaní všetkých parametrov, ktorých je v prípade tejto aplikácie neúrekom, dochádza k zostaveniu RIPv2 paketu.
+
+Po jeho zostavení, ktoré nie je nijak záludné, je odoslaný využitím BSD soketov. Nakoľko potrebujeme odosielať z UDP portu číslo 520, je potrebné aplikáciu spúšťať s oprávnením roota. 
+
+Ak nie je špecifikované rozhranie, na ktoré má byť paket odoslaný, je odoslaný na všetky dostupné rozhrania systému.
+
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Popis útoku} \label{utok}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Využitím aplikácie \texttt{myripsniffer} získame detailnejšie informácie o prebiehajúcej komunikácii na rozhraní, na ktorom chceme vykonať útok. V tomto prípade budeme zachytávať komunikáciu na rozhraní \texttt{eth0}. Aplikáciu je nutné spustíť s právami roota z dôvodu, že využíva `libpcap` knižnicu.
+
+\begin{verbatim}
+sudo ./myripsniffer -i eth0
+\end{verbatim}
+
+Aplikácia je schopná zachytiť tri druhy protokolov: RIPv1, RIPv2 a RIPng. Pri všetkých prípadoch sa môže jednať o správy typu \texttt{Request} alebo \texttt{Response}. Vo verzii 2 protokolu RIP je možné vidieť okrem záznamov aj zabezpečenie správy spolu s heslom.
+
+Zachytená komunikácia vyzerá napr. následovne: 
+
+\begin{verbatim}
+[23:04:03] RIPv2 from 10.0.0.1
+Command: Request (1)
+========== ENTRY ===========
+Route Tag: 0
+Address Family Identifier: unknown (0)
+Metric: 16
+
+[23:04:04] RIPv2 from 10.0.0.1
+Command: Response (2)
+====== AUTHENTICATION ======
+Authentication type: Simple password
+Password: ISA>28114bb8715
+========== ENTRY ===========
+Route Tag: 0
+Address Family Identifier: IP (2)
+IP Address: 10.48.51.0
+Netmask: 255.255.255.0
+Next Hop: 0.0.0.0
+Metric: 1
+========== ENTRY ===========
+		    ...
+
+[23:04:04] RIPng from fe80::a00:27ff:fe1b:716d
+Command: Response (2)
+========== ENTRY ===========
+Route Tag: 0
+IPv6 Prefix: fd00::
+Prefix Length: 64
+Metric: 1
+========== ENTRY ===========
+			...
+\end{verbatim}
+
+Najdôležitejšia časť pre úspešné vykonanie útoku je záznam s heslom, ktorým musíme náš záznam podpísať.
+
+K podvrhnutiu falošného záznamu využijeme aplikáciu \texttt{myripresponse}. Útok môže vyzerať napr. následovne:
+
+\begin{verbatim}
+sudo ./myripresponse -i eth0 -r 10.10.10.0/24 -p "ISA>28114bb8715"
+\end{verbatim}
+
+Aj v tomto prípade je nutné spustenie s oprávneniami roota, nakoľko aplikácia využíva port číslo 520. Ak všetko prebehlo úspešne, v smerovacej tabuľke routera sa bude nachádzať nový záznam obshujúci cestu k sieti \texttt{10.10.10.0/24}.
+
+\newpage
+
+\bibliographystyle{czechiso}
+
+\begin{flushleft}
+	\bibliography{literatura}
+\end{flushleft}
+
+
+
+\end{document}

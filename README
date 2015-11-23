@@ -1,0 +1,30 @@
+# Autor
+
+Peter Gazdík
+
+# Popis
+
+Nástroje na odchytávanie RIP a RIPng paketov. Vypracované v rámci projektu do predmetu ISA v ak.r. 2015/2016.
+
+# Spustenie
+
+./myripresponse {-i <rozhraní>} -r <IPv4>/[8-30] {-n <IPv4>} {-m [0-16]} {-t [0-65535]} {-p <heslo>}
+
+- `-i`: <rozhraní> udává rozhraní, ze kterého má být útočný paket odeslán;
+- `-r`: v <IPv4> je IP adresa podvrhávané sítě a za lomítkem číselná délka masky sítě;
+- `-m`: následující číslo udává RIP Metriku, tedy počet hopů, implicitně 1;
+- `-n`: <IPv4> za tímto parametrem je adresa next-hopu pro podvrhávanou routu, implicitně 0.0.0.0;
+- `-t`: číslo udává hodnotu Router Tagu, implicitně 0;
+- `-p`: v případě použití tohoto přepínače je podvrhávaná RIP Response zpráva zabezpečena pomocí simple-password autentizace, kde 16B položka <heslo> je snad sebevyjadřující; pokud parametr chybí, tak implicitně neuvažujte žádný způsob zabezpečení zpráv.
+
+./myripsniffer -i <rozhraní>, kde význam parametru je následující: 
+- `-i`: <rozhraní> udává rozhraní, na kterém má být odchyt paketů prováděn.
+
+# Odovzdané súbory:
+
+manual.pdf
+Makefile
+README
+src/
+src/
+
