@@ -6,10 +6,9 @@ Vypracované v rámci projektu do predmetu ISA v ak.r. 2015/2016.
 
 ### Autor
 
-Peter Gazdík
+- Peter Gazdík, xgazdi03@stud.fit.vutbr.cz
 
 ## Popis
-
 
 ## Spustenie
 
